@@ -6,16 +6,7 @@ import {
   ValidationError,
 } from '../utils/errors';
 import { logger } from '../utils/logger';
-
-interface OrderItemInput {
-  productId: string;
-  quantity: number;
-}
-
-interface CreateOrderInput {
-  userId: string;
-  items: OrderItemInput[];
-}
+import { CreateOrderInput } from '../types/order.types';
 
 export const orderService = {
   async findAll() {
@@ -69,7 +60,7 @@ export const orderService = {
         >`
           SELECT id, price, stock
           FROM products
-          WHERE id = ANY(${productIds}::uuid[])
+          WHERE id = ANY(${productIds})
           FOR UPDATE
         `;
 
@@ -120,7 +111,6 @@ export const orderService = {
         return created;
       },
       {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
         timeout: 10_000, 
       }
     );

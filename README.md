@@ -10,11 +10,11 @@ API GraphQL para gerenciamento de pedidos, construída com Node.js, TypeScript, 
 |--------------|---------------------------------|
 | Runtime      | Node.js 20                      |
 | Linguagem    | TypeScript 5                    |
-| GraphQL      | Apollo Server 4                 |
-| ORM          | Prisma 5                        |
+| GraphQL      | Apollo Server 5                 |
+| ORM          | Prisma 7                        |
 | Banco        | PostgreSQL 16                   |
 | Testes       | Jest + ts-jest                  |
-| Logs         | Winston (structured JSON)       |
+| Logs         | Custom logger (JSON estruturado)|
 | Containers   | Docker + docker-compose         |
 | CI           | GitHub Actions                  |
 
@@ -39,6 +39,9 @@ docker compose up --build
 
 # A API estará disponível em:
 # http://localhost:4000/graphql
+
+# Para usar o sandbox e colocar mutations:
+# https://studio.apollographql.com/sandbox/explorer
 ```
 
 ### Desenvolvimento local (hot-reload)
@@ -55,11 +58,11 @@ cp .env.example .env
 npm install
 
 # 4. Gere o client Prisma e rode as migrations
-npm run db:generate
-npx prisma migrate dev --name init
+npm run prisma:generate
+npm run prisma:migrate
 
 # 5. (Opcional) Popule com dados de exemplo
-npm run db:seed
+npm run prisma:seed
 
 # 6. Inicie o servidor com hot-reload
 npm run dev
@@ -69,7 +72,7 @@ npm run dev
 
 ```bash
 npm test
-npm run test:coverage   # com relatório de cobertura
+npm run test:coverage 
 ```
 
 ---
@@ -82,7 +85,7 @@ Acesse o GraphQL Playground em `http://localhost:4000/graphql`.
 
 ```graphql
 mutation {
-  createUser(input: { name: "Alice Silva", email: "alice@example.com" }) {
+  createUser(input: { name: "Maria Lúcia", email: "lucia@example.com" }) {
     id
     name
     email
@@ -95,7 +98,32 @@ mutation {
 
 ```graphql
 mutation {
-  createProduct(input: { name: "Notebook Pro", price: 4999.99, stock: 10 }) {
+  createProduct(input: { name: "Macbook Pro 9s", price: 8999.99, stock: 10 }) {
+    id
+    name
+    price
+    stock
+  }
+}
+```
+
+
+### Listar produtos
+```graphql
+query {
+  products {
+    id
+    name
+    price
+    stock
+  }
+}
+```
+
+### Listar produtos disponíveis (com estoque)
+```graphql
+query {
+  products(onlyAvailable: true) {
     id
     name
     price
@@ -146,8 +174,8 @@ query {
 
 ## Decisões técnicas
 
-### Por que GraphQL + Apollo Server 4?
-GraphQL permite que clientes peçam exatamente os campos que precisam, evitando over/under-fetching. Apollo Server 4 é a versão mais recente, bem mantida e com suporte nativo a TypeScript.
+### Por que GraphQL + Apollo Server 5?
+GraphQL permite que clientes peçam exatamente os campos que precisam, evitando over/under-fetching. Apollo Server 5 é a versão mais recente, bem mantida e com suporte nativo a TypeScript.
 
 ### Por que Prisma?
 Prisma oferece type-safety fim-a-fim (schema → banco → TypeScript), migrations versionadas e um query builder ergonômico. Alternativas como Knex ou DrizzleORM exigiriam mais código boilerplate para o mesmo resultado.
@@ -158,15 +186,15 @@ Esse é o ponto mais crítico do desafio. A abordagem adotada usa **duas camadas
 
 1. **`SELECT FOR UPDATE`** — dentro da transaction, os rows dos produtos envolvidos são bloqueados antes da leitura do estoque. Qualquer transação concorrente que tente modificar os mesmos produtos ficará aguardando o unlock.
 
-2. **`SERIALIZABLE` isolation level** — garante que nenhuma leitura fantasma aconteça entre a leitura e a escrita dentro da mesma TX.
+2. **Timeout de transação configurado** — `timeout: 10_000` evita que uma transação travada segure o lock indefinidamente, liberando recursos para outras requisições.
 
 Resultado: dois pedidos simultâneos para o mesmo produto com estoque 1 são processados sequencialmente pelo banco. O segundo lerá o estoque já decrementado e retornará `InsufficientStockError`.
 
 ### Erros tipados como GraphQL Errors
 Erros de negócio (estoque insuficiente, não encontrado, conflito de e-mail) estendem `GraphQLError` com um campo `extensions.code`. Isso permite que clientes façam tratamento programático sem parsear mensagens de texto.
 
-### Logs estruturados com Winston
-Em produção, logs são emitidos em JSON puro, facilitando ingestão por ferramentas como Datadog, CloudWatch ou Loki. Em dev, formato human-friendly com cores.
+### Logs estruturados
+Em produção, logs são emitidos em JSON puro, facilitando ingestão por ferramentas como Datadog, CloudWatch ou Loki. O logger suporta níveis `debug`, `info`, `warn` e `error`, configuráveis via variável de ambiente `LOG_LEVEL`.
 
 ---
 
@@ -175,18 +203,33 @@ Em produção, logs são emitidos em JSON puro, facilitando ingestão por ferram
 | Decisão | Trade-off |
 |---|---|
 | Apollo Standalone (sem Express) | Mais simples, mas menos flexível para adicionar middlewares HTTP no futuro |
-| Prisma `$transaction` com `$queryRaw` para FOR UPDATE | Mistura API alto nível com SQL raw; alternativa seria usar Prisma Pulse ou um advisory lock, mas FOR UPDATE é mais portável |
-| Mocks no lugar de banco real nos testes | Testes unitários rápidos, mas não cobrem o comportamento real do FOR UPDATE. Testes de integração (ausentes por tempo) cobririam isso |
+| Prisma `$transaction` com `$queryRaw` para FOR UPDATE | Mistura API alto nível com SQL raw; alternativa seria usar advisory lock, mas FOR UPDATE é mais portável |
+| Testes de integração com banco real | Cobertura real do comportamento de locking e transações, ao custo de testes mais lentos e dependência de infraestrutura |
 | UUID como PK | Seguro e distribuído, mas levemente mais lento em index B-tree vs BIGSERIAL |
+| Email como identificador único de usuário | Simples de implementar, mas permite múltiplas contas da mesma pessoa — CPF seria mais robusto |
 
 ---
 
 ## O que faria diferente com mais tempo
 
-- **Testes de integração** com `testcontainers` (banco PostgreSQL real em Docker durante os testes) para validar o comportamento do locking sob concorrência de fato
-- **DataLoader** para resolver o problema N+1 em queries aninhadas (ex: listar orders com users)
-- **Paginação e filtros** nas queries de listagem
-- **Autenticação** via JWT com contexto no Apollo Server
-- **Rate limiting** por IP/usuário para a mutation `createOrder`
-- **Healthcheck endpoint** REST (`/health`) além do GraphQL
-- **Observabilidade** com OpenTelemetry + traces distribuídos
+### Já mitigado, mas pode evoluir
+- **Preço histórico** — `orderItems.price` já persiste o preço no momento da compra. Evoluiria adicionando soft delete em produtos para preservar o histórico de pedidos mesmo após remoção.
+
+### Melhorias prioritárias
+- **DataLoader** — o Prisma já faz batch automático nos include diretos, mas em queries GraphQL aninhadas arbitrárias vindas do cliente os resolvers podem disparar queries redundantes. DataLoader resolveria isso agrupando as requisições por batch.
+- **Paginação** — queries de listagem retornam todos os registros de uma vez; com volume crescente isso seria insustentável.
+- **SKU em produtos** — campo único para tornar o cadastro idempotente e separar as operações de `createProduct` e `restockProduct`. Hoje múltiplas chamadas com os mesmos dados geram registros duplicados.
+
+### Melhorias de produto
+- **Status de pedido** — fluxo `PENDING → CONFIRMED → SHIPPED → DELIVERED → CANCELLED` para rastreamento e suporte a cancelamentos.
+- **Autenticação JWT** — `userId` deveria vir do token, não do input. Hoje qualquer pessoa pode criar pedidos em nome de qualquer usuário.
+- **CPF como identificador único** — email sozinho permite múltiplas contas da mesma pessoa.
+
+### Infraestrutura
+- **OpenTelemetry** — traces distribuídos para observabilidade em produção.
+- **Rate limiting** na mutation `createOrder` por IP/usuário.
+- **Healthcheck** REST em `/health` além do endpoint GraphQL.
+- **Filas com BullMQ + Redis** — hoje o createOrder é síncrono e segura a conexão HTTP até a transação terminar. Com volume alto, pedidos poderiam ir para uma fila e serem processados em background, retornando um orderId imediatamente com status PENDING.
+- **Cache com Redis** — cachear queries frequentes como products e users para reduzir hits desnecessários no banco em listagens.
+- **Retry com backoff exponencial** — se o SELECT FOR UPDATE causar deadlock ou timeout sob concorrência alta, hoje o erro estoura direto para o cliente. Um retry automático tornaria o sistema mais resiliente.
+- **Constraint de estoque negativo no banco** — a validação de estoque hoje é feita apenas no código. Um CHECK (stock >= 0) na coluna garantiria integridade mesmo contra queries diretas no banco.

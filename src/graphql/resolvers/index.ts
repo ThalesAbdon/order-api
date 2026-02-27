@@ -3,6 +3,9 @@ import { Prisma } from '@prisma/client'
 import { userService } from '../../services/user.service'
 import { productService } from '../../services/product.service'
 import { orderService } from '../../services/order.service'
+import { CreateUserInput, CreateUserSchema } from '../../types/user.types'
+import { CreateProductInput, CreateProductSchema, FindProductsInput, FindProductsSchema } from '../../types/product.types'
+import { CreateOrderInput, CreateOrderSchema } from '../../types/order.types'
 
 const DateTimeScalar = new GraphQLScalarType({
   name: 'DateTime',
@@ -26,19 +29,31 @@ export const resolvers = {
   Query: {
     users:    () => userService.findAll(),
     user:     (_: unknown, { id }: { id: string }) => userService.findById(id),
-    products: () => productService.findAll(),
+    products: (_: unknown, args: FindProductsInput) => {
+      const { onlyAvailable } = FindProductsSchema.parse(args)
+      return productService.findAll(onlyAvailable)
+    },
     product:  (_: unknown, { id }: { id: string }) => productService.findById(id),
     orders:   () => orderService.findAll(),
     order:    (_: unknown, { id }: { id: string }) => orderService.findById(id),
   },
 
   Mutation: {
-    createUser:    (_: unknown, { input }: any) => userService.create(input),
-    createProduct: (_: unknown, { input }: any) => productService.create(input),
-    createOrder:   (_: unknown, { input }: any) => orderService.create(input),
+    createUser: (_: unknown, { input }: { input: CreateUserInput }) => {
+      const parsed = CreateUserSchema.parse(input)
+      return userService.create(parsed)
+    },
+    createProduct: (_: unknown, { input }: { input: CreateProductInput }) => {
+      const parsed = CreateProductSchema.parse(input)
+      return productService.create(parsed)
+    },
+   createOrder: (_: unknown, { input }: { input: CreateOrderInput }) => {
+      const parsed = CreateOrderSchema.parse(input)
+      return orderService.create(parsed)
+    },
   },
 
-  User:      { orders: (p: any) => p.orders ?? [] },
-  Order:     { items:  (p: any) => p.orderItems ?? [] },
-  OrderItem: { product: (p: any) => p.product },
+  User:      { orders:  (p: { orders?: unknown[] })    => p.orders ?? [] },
+  Order:     { items:   (p: { orderItems?: unknown[] }) => p.orderItems ?? [] },
+  OrderItem: { product: (p: { product?: unknown })      => p.product },
 }
