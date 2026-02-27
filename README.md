@@ -71,8 +71,14 @@ npm run dev
 ### Rodar testes
 
 ```bash
+# 1. Sobe o banco de teste e roda as migrations (apenas na primeira vez ou após docker compose down)
+npm run test:setup
+
+# 2. Roda os testes
 npm test
-npm run test:coverage 
+
+# 3. Com relatório de cobertura
+npm run test:coverage
 ```
 
 ---

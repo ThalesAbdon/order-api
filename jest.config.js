@@ -7,4 +7,5 @@ module.exports = {
   collectCoverageFrom: ['src/**/*.ts', '!src/server.ts'],
   testTimeout: 15000,
   coverageReporters: ['text', 'text-summary'],
+  setupFiles: ['./tests/env.ts'],
 }
