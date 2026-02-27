@@ -59,7 +59,7 @@ export const typeDefs = gql`
   type Query {
     users: [User!]!
     user(id: ID!): User
-    products: [Product!]!
+   products(onlyAvailable: Boolean): [Product!]!
     product(id: ID!): Product
     orders: [Order!]!
     order(id: ID!): Order
