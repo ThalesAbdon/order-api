@@ -175,6 +175,40 @@ query {
   }
 }
 ```
+### Casos testados manualmente
+
+#### Usuários
+* Criar com sucesso
+* Criar com email duplicado → ``BAD_USER_INPUT``
+* Criar sem campo obrigatório → ``GRAPHQL_VALIDATION_FAILED``
+* Listar todos
+* Buscar por ID válido
+* Buscar por ID inexistente → ``NOT_FOUND``
+* Listar com pedidos aninhados
+  
+#### Produtos
+* Criar com sucesso
+* Criar com estoque zero
+* Criar sem campos obrigatórios → ``GRAPHQL_VALIDATION_FAILED`` (dois erros simultâneos)
+* Listar todos
+* Listar só com estoque (``onlyAvailable: true``)
+* Buscar por ID válido
+* Buscar por ID inexistente → ``NOT_FOUND``
+* 
+#### Pedidos
+* Criar com sucesso (item único)
+* Criar com múltiplos itens — total calculado corretamente
+* Criar com estoque insuficiente → ``BAD_USER_INPUT`` com available/requested
+* Criar com usuário inexistente → ``NOT_FOUND``
+* Criar com produto inexistente → ``NOT_FOUND``
+* Criar com items vazio → ``BAD_USER_INPUT``
+* Criar com quantity zero → ``BAD_USER_INPUT``
+* Listar todos
+* Buscar por ID válido
+* Buscar por ID inexistente → ``NOT_FOUND``
+* Dois pedidos simultâneos pelo último estoque → um sucesso, um ``BAD_USER_INPUT`` — ``SELECT FOR UPDATE`` funcionando
+
+---
 
 ---
 
