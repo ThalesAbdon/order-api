@@ -38,10 +38,10 @@ cd order-api
 docker compose up --build
 
 # A API estará disponível em:
-# http://localhost:4000/graphql
+http://localhost:4000/graphql
 
 # Para usar o sandbox e colocar mutations:
-# https://studio.apollographql.com/sandbox/explorer
+https://studio.apollographql.com/sandbox/explorer
 ```
 
 ### Desenvolvimento local (hot-reload)
