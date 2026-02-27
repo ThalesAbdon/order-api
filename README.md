@@ -252,6 +252,20 @@ Em produção, logs são emitidos em JSON puro, facilitando ingestão por ferram
 
 ## O que faria diferente com mais tempo
 
+### CRUD completo das entidades
+O escopo do desafio cobre as operações essenciais de criação e leitura. As evoluções naturais seriam:
+
+- **updateUser** — permitir atualização de name e email, com revalidação de unicidade do e-mail caso ele seja alterado.
+- **deleteUser (soft delete)** — adição de um campo deleted_at na tabela users. Usuários deletados seriam excluídos das listagens por padrão, mas preservados no histórico de pedidos para fins de rastreabilidade. Nenhum dado seria removido fisicamente do banco.
+- **updateProduct** — atualização de name e price. Alterações de preço não afetariam pedidos já criados, pois order_items.price persiste o preço no momento da compra.
+- **restockProduct** — mutation dedicada para reabastecimento de estoque, separando semânticamente a operação de criação de produto da operação de reposição. Adicionaria também um campo sku único para tornar o cadastro idempotente e evitar duplicatas.
+- **cancelOrder** — mutation para cancelamento de pedidos, com transição de status PENDING → CANCELLED e devolução automática do estoque aos produtos envolvidos, dentro de uma única transação.
+
+### Status de pedido
+Introduziria um enum OrderStatus com o fluxo:
+``PENDING → CONFIRMED → SHIPPED → DELIVERED → CANCELLED``
+Isso habilitaria rastreamento, suporte a cancelamentos parciais e base para notificações futuras.
+
 ### Já mitigado, mas pode evoluir
 - **Preço histórico** — `orderItems.price` já persiste o preço no momento da compra. Evoluiria adicionando soft delete em produtos para preservar o histórico de pedidos mesmo após remoção.
 
