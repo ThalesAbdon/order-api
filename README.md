@@ -58,11 +58,11 @@ cp .env.example .env
 npm install
 
 # 4. Gere o client Prisma e rode as migrations
-npm run db:generate
-npx prisma migrate dev --name init
+npm run prisma:generate
+npm run prisma:migrate
 
 # 5. (Opcional) Popule com dados de exemplo
-npm run db:seed
+npm run prisma:seed
 
 # 6. Inicie o servidor com hot-reload
 npm run dev
@@ -72,7 +72,7 @@ npm run dev
 
 ```bash
 npm test
-npm run test:coverage   # com relatório de cobertura
+npm run test:coverage 
 ```
 
 ---
@@ -85,7 +85,7 @@ Acesse o GraphQL Playground em `http://localhost:4000/graphql`.
 
 ```graphql
 mutation {
-  createUser(input: { name: "Alice Silva", email: "alice@example.com" }) {
+  createUser(input: { name: "Maria Lúcia", email: "lucia@example.com" }) {
     id
     name
     email
@@ -98,7 +98,32 @@ mutation {
 
 ```graphql
 mutation {
-  createProduct(input: { name: "Notebook Pro", price: 4999.99, stock: 10 }) {
+  createProduct(input: { name: "Macbook Pro 9s", price: 8999.99, stock: 10 }) {
+    id
+    name
+    price
+    stock
+  }
+}
+```
+
+
+### Listar produtos
+```graphql
+query {
+  products {
+    id
+    name
+    price
+    stock
+  }
+}
+```
+
+### Listar produtos disponíveis (com estoque)
+```graphql
+query {
+  products(onlyAvailable: true) {
     id
     name
     price
@@ -149,7 +174,8 @@ query {
 
 ## Decisões técnicas
 
-under-fetching. Apollo Server 4 é a versão mais recente, bem mantida e com suporte nativo a TypeScript.
+### Por que GraphQL + Apollo Server 5?
+GraphQL permite que clientes peçam exatamente os campos que precisam, evitando over/under-fetching. Apollo Server 5 é a versão mais recente, bem mantida e com suporte nativo a TypeScript.
 
 ### Por que Prisma?
 Prisma oferece type-safety fim-a-fim (schema → banco → TypeScript), migrations versionadas e um query builder ergonômico. Alternativas como Knex ou DrizzleORM exigiriam mais código boilerplate para o mesmo resultado.
@@ -190,7 +216,7 @@ Em produção, logs são emitidos em JSON puro, facilitando ingestão por ferram
 - **Preço histórico** — `orderItems.price` já persiste o preço no momento da compra. Evoluiria adicionando soft delete em produtos para preservar o histórico de pedidos mesmo após remoção.
 
 ### Melhorias prioritárias
-- **DataLoader** — resolver o problema N+1 em queries aninhadas (users → orders → items → product). Hoje com 100 usuários podem ser disparadas 100+ queries.
+- **DataLoader** — o Prisma já faz batch automático nos include diretos, mas em queries GraphQL aninhadas arbitrárias vindas do cliente os resolvers podem disparar queries redundantes. DataLoader resolveria isso agrupando as requisições por batch.
 - **Paginação** — queries de listagem retornam todos os registros de uma vez; com volume crescente isso seria insustentável.
 - **SKU em produtos** — campo único para tornar o cadastro idempotente e separar as operações de `createProduct` e `restockProduct`. Hoje múltiplas chamadas com os mesmos dados geram registros duplicados.
 
@@ -203,3 +229,7 @@ Em produção, logs são emitidos em JSON puro, facilitando ingestão por ferram
 - **OpenTelemetry** — traces distribuídos para observabilidade em produção.
 - **Rate limiting** na mutation `createOrder` por IP/usuário.
 - **Healthcheck** REST em `/health` além do endpoint GraphQL.
+- **Filas com BullMQ + Redis** — hoje o createOrder é síncrono e segura a conexão HTTP até a transação terminar. Com volume alto, pedidos poderiam ir para uma fila e serem processados em background, retornando um orderId imediatamente com status PENDING.
+- **Cache com Redis** — cachear queries frequentes como products e users para reduzir hits desnecessários no banco em listagens.
+- **Retry com backoff exponencial** — se o SELECT FOR UPDATE causar deadlock ou timeout sob concorrência alta, hoje o erro estoura direto para o cliente. Um retry automático tornaria o sistema mais resiliente.
+- **Constraint de estoque negativo no banco** — a validação de estoque hoje é feita apenas no código. Um CHECK (stock >= 0) na coluna garantiria integridade mesmo contra queries diretas no banco.
