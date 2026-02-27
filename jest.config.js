@@ -6,4 +6,5 @@ module.exports = {
   moduleFileExtensions: ['ts', 'js', 'json'],
   collectCoverageFrom: ['src/**/*.ts', '!src/server.ts'],
   testTimeout: 15000,
+  coverageReporters: ['text', 'text-summary'],
 }
