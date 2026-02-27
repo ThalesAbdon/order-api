@@ -9,8 +9,9 @@ const LEVEL_PRIORITY: Record<Level, number> = {
 }
 
 function shouldLog(level: Level) {
-  const envLevel = (process.env.LOG_LEVEL as Level) || 'info'
-  return LEVEL_PRIORITY[level] >= LEVEL_PRIORITY[envLevel]
+  const envLevel = process.env.LOG_LEVEL
+  if (envLevel === 'silent') return false
+  return LEVEL_PRIORITY[level] >= LEVEL_PRIORITY[(envLevel as Level) || 'info']
 }
 
 function safeStringify(obj: unknown) {

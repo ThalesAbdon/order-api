@@ -7,6 +7,7 @@ describe('logger', () => {
     jest.spyOn(console, 'log').mockImplementation(() => {})
     jest.spyOn(console, 'error').mockImplementation(() => {})
     process.env = { ...originalEnv }
+    delete process.env.LOG_LEVEL 
   })
 
   afterEach(() => {
