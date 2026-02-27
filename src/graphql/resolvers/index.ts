@@ -1,11 +1,24 @@
 import { GraphQLScalarType, Kind } from 'graphql'
 import { Prisma } from '@prisma/client'
+import { ZodSchema, ZodError } from 'zod'
 import { userService } from '../../services/user.service'
 import { productService } from '../../services/product.service'
 import { orderService } from '../../services/order.service'
+import { ValidationError } from '../../utils/errors'
 import { CreateUserInput, CreateUserSchema } from '../../types/user.types'
 import { CreateProductInput, CreateProductSchema, FindProductsInput, FindProductsSchema } from '../../types/product.types'
 import { CreateOrderInput, CreateOrderSchema } from '../../types/order.types'
+
+function safeParse<T>(schema: ZodSchema<T>, input: unknown): T {
+  try {
+    return schema.parse(input)
+  } catch (err) {
+    if (err instanceof ZodError) {
+      throw new ValidationError(JSON.stringify(err.issues))
+    }
+    throw err
+  }
+}
 
 const DateTimeScalar = new GraphQLScalarType({
   name: 'DateTime',
@@ -30,7 +43,7 @@ export const resolvers = {
     users:    () => userService.findAll(),
     user:     (_: unknown, { id }: { id: string }) => userService.findById(id),
     products: (_: unknown, args: FindProductsInput) => {
-      const { onlyAvailable } = FindProductsSchema.parse(args)
+      const { onlyAvailable } = safeParse(FindProductsSchema, args)
       return productService.findAll(onlyAvailable)
     },
     product:  (_: unknown, { id }: { id: string }) => productService.findById(id),
@@ -40,15 +53,15 @@ export const resolvers = {
 
   Mutation: {
     createUser: (_: unknown, { input }: { input: CreateUserInput }) => {
-      const parsed = CreateUserSchema.parse(input)
+      const parsed = safeParse(CreateUserSchema, input)
       return userService.create(parsed)
     },
     createProduct: (_: unknown, { input }: { input: CreateProductInput }) => {
-      const parsed = CreateProductSchema.parse(input)
+      const parsed = safeParse(CreateProductSchema, input)
       return productService.create(parsed)
     },
-   createOrder: (_: unknown, { input }: { input: CreateOrderInput }) => {
-      const parsed = CreateOrderSchema.parse(input)
+    createOrder: (_: unknown, { input }: { input: CreateOrderInput }) => {
+      const parsed = safeParse(CreateOrderSchema, input)
       return orderService.create(parsed)
     },
   },

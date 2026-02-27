@@ -53,11 +53,10 @@ async function main() {
   await prisma.order.create({
     data: {
       userId: bob.id,
-      total: 1200.0,
+      total: 750.0,
       orderItems: {
         create: [
           { productId: mouse.id,   quantity: 2, price: 150.0 },
-          { productId: teclado.id, quantity: 1, price: 450.0 },
           { productId: teclado.id, quantity: 1, price: 450.0 },
         ],
       },
